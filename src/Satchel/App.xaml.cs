@@ -12,6 +12,7 @@ public partial class App : Application
 {
     private const string InstanceName = "Satchel.AddonManager.SingleInstance";
     private Mutex? _instanceMutex;
+    private Mutex? _runningMarker;
     private EventWaitHandle? _showSignal;
     private RegisteredWaitHandle? _showWait;
     private TrayIcon? _tray;
@@ -42,6 +43,9 @@ public partial class App : Application
             Shutdown();
             return;
         }
+
+        // Fixed-name marker the installer's AppMutex checks, so setup/uninstall can ask to close Satchel first.
+        _runningMarker = new Mutex(false, "SatchelAddonManagerRunning");
 
         DispatcherUnhandledException += OnUnhandledException;
         AsyncCommand.OnError = ex =>
@@ -115,6 +119,7 @@ public partial class App : Application
         _showWait?.Unregister(null);
         _tray?.Dispose();
         _showSignal?.Dispose();
+        _runningMarker?.Dispose();
         if (_instanceMutex != null)
         {
             try
