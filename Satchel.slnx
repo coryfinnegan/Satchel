@@ -1,0 +1,9 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/Satchel.Core/Satchel.Core.csproj" />
+    <Project Path="src/Satchel/Satchel.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/Satchel.Tests/Satchel.Tests.csproj" />
+  </Folder>
+</Solution>

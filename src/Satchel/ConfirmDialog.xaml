@@ -1,0 +1,17 @@
+<Window x:Class="Satchel.ConfirmDialog"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Width="440" SizeToContent="Height" ResizeMode="NoResize" WindowStyle="None" AllowsTransparency="True"
+        Background="Transparent" ShowInTaskbar="False" WindowStartupLocation="CenterOwner"
+        FontFamily="{StaticResource UiFont}" Foreground="{StaticResource Text}">
+    <Border Background="{StaticResource Elevated}" BorderBrush="{StaticResource BorderBrush}" BorderThickness="1" CornerRadius="12" Padding="24,22">
+        <StackPanel>
+            <TextBlock x:Name="TitleText" FontSize="16" FontWeight="SemiBold" TextWrapping="Wrap" />
+            <TextBlock x:Name="MessageText" Margin="0,10,0,0" Foreground="{StaticResource Muted}" TextWrapping="Wrap" FontSize="13" />
+            <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,22,0,0">
+                <Button Content="Cancel" IsCancel="True" Click="Cancel_Click" MinWidth="88" />
+                <Button x:Name="ConfirmButton" Style="{StaticResource PrimaryButton}" IsDefault="True" Margin="10,0,0,0" Click="Confirm_Click" MinWidth="88" />
+            </StackPanel>
+        </StackPanel>
+    </Border>
+</Window>

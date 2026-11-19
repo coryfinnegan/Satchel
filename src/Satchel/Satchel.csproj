@@ -1,0 +1,38 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <UseWPF>true</UseWPF>
+    <UseWindowsForms>true</UseWindowsForms>
+    <AssemblyName>Satchel</AssemblyName>
+    <RootNamespace>Satchel</RootNamespace>
+    <ApplicationIcon>Assets\satchel.ico</ApplicationIcon>
+    <Version>1.0.0</Version>
+    <Product>Satchel</Product>
+    <Description>Ad-free World of Warcraft addon manager</Description>
+    <SatelliteResourceLanguages>en</SatelliteResourceLanguages>
+    <TieredPGO>true</TieredPGO>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+    <!-- WPF needs PerMonitorV2 in the manifest; the WinForms analyzer only applies to WinForms windows. -->
+    <NoWarn>$(NoWarn);WFO0003</NoWarn>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- WPF and WinForms share type names; only the tray icon uses WinForms, fully qualified. -->
+    <Using Remove="System.Windows.Forms" />
+    <Using Remove="System.Drawing" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Resource Include="Assets\satchel.png" />
+    <Resource Include="Assets\satchel.ico" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Satchel.Core\Satchel.Core.csproj" />
+  </ItemGroup>
+
+</Project>
