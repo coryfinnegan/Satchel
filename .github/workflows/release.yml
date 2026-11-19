@@ -72,17 +72,26 @@ jobs:
           }
           Compress-Archive -Path out/framework-dependent/* -DestinationPath "dist/Satchel-$env:TAG-win-x64.zip"
           Compress-Archive -Path out/self-contained/* -DestinationPath "dist/Satchel-$env:TAG-win-x64-self-contained.zip"
-          Get-ChildItem dist/*.zip | ForEach-Object {
+          (Get-Content .github/release-notes.md -Raw).Replace('{TAG}', $env:TAG) | Set-Content -Encoding utf8 notes.md
+
+      - name: Build installer
+        shell: pwsh
+        run: ./installer/build-installer.ps1 -Version $env:VERSION -SourceDir out/self-contained -OutputDir dist -InstallInnoIfMissing
+
+      - name: Checksums
+        shell: pwsh
+        run: |
+          Get-ChildItem dist -File -Include *.zip, *.exe -Recurse | Sort-Object Name | ForEach-Object {
             "{0}  {1}" -f (Get-FileHash $_ -Algorithm SHA256).Hash.ToLower(), $_.Name
           } | Set-Content -Encoding ascii dist/SHA256SUMS.txt
           Get-Content dist/SHA256SUMS.txt
-          (Get-Content .github/release-notes.md -Raw).Replace('{TAG}', $env:TAG) | Set-Content -Encoding utf8 notes.md
 
       - name: Attest build provenance
         uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
         with:
           subject-path: |
             dist/*.zip
+            dist/*.exe
             out/framework-dependent/Satchel.exe
             out/self-contained/Satchel.exe
 

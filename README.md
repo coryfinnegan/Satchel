@@ -17,9 +17,11 @@ game installs, tracks your addons, and keeps them updated) with no ads, no telem
 
 ## Download
 
-Grab the latest zip from [Releases](https://github.com/coryfinnegan/Satchel/releases/latest), unzip it anywhere, and run
-`Satchel.exe`:
+Grab the latest release from [Releases](https://github.com/coryfinnegan/Satchel/releases/latest):
 
+- **`Satchel-Setup-vX.Y.Z.exe` (recommended)**: one-click installer with .NET included. It installs per-user (no admin),
+  adds a Start menu entry and an uninstaller, and later versions upgrade in place. Uninstalling keeps your settings
+  and never touches your WoW addons.
 - `Satchel-vX.Y.Z-win-x64.zip`: small; needs the [.NET 10 Desktop Runtime](https://dotnet.microsoft.com/download/dotnet/10.0).
 - `Satchel-vX.Y.Z-win-x64-self-contained.zip`: runs with nothing else installed.
 
@@ -87,7 +89,8 @@ CI (`.github/workflows/ci.yml`) builds, tests and publishes on every push and pu
 git tag v1.2.3; git push origin v1.2.3     # v1.2.3-beta.1 makes a pre-release
 ```
 
-`.github/workflows/release.yml` tests, builds both zips, attests them and publishes the GitHub release. To rebuild an
+`.github/workflows/release.yml` tests, builds both zips and the installer (`installer/Satchel.iss`, Inno Setup), attests
+them and publishes the GitHub release. To rebuild an
 existing tag, run the workflow by hand from the Actions tab.
 
 ## Credits and license

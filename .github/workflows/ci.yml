@@ -61,3 +61,18 @@ jobs:
           name: Satchel-${{ github.sha }}
           path: artifacts/Satchel
           retention-days: 7
+
+      - name: Build installer (smoke)
+        shell: pwsh
+        run: |
+          dotnet publish src/Satchel/Satchel.csproj -c Release -r win-x64 --self-contained true `
+            -p:PublishSingleFile=true -p:PublishReadyToRun=true -p:IncludeNativeLibrariesForSelfExtract=true `
+            -p:DebugType=none -p:Version=0.0.0-ci -o artifacts/self-contained
+          ./installer/build-installer.ps1 -Version 0.0.0-ci -SourceDir artifacts/self-contained -OutputDir artifacts/installer -InstallInnoIfMissing
+
+      - name: Upload installer
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: Satchel-Setup-${{ github.sha }}
+          path: artifacts/installer
+          retention-days: 7
