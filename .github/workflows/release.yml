@@ -1,0 +1,103 @@
+name: Release
+
+# Push a tag like v1.2.3 (or v1.2.3-beta.1 for a pre-release) to build and publish a GitHub release.
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Existing tag to (re)build, e.g. v1.0.0
+        required: true
+
+permissions:
+  contents: write       # create the release and upload assets
+  id-token: write       # sign build provenance
+  attestations: write
+
+concurrency:
+  group: release-${{ inputs.tag || github.ref_name }}
+  cancel-in-progress: false
+
+env:
+  DOTNET_NOLOGO: true
+  DOTNET_CLI_TELEMETRY_OPTOUT: true
+  DOTNET_SKIP_FIRST_TIME_EXPERIENCE: true
+
+jobs:
+  release:
+    name: Build and publish
+    runs-on: windows-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ inputs.tag || github.ref }}
+
+      - uses: actions/setup-dotnet@0f4a354dd5547a28c70b7853dbd95d5b67886e73 # v6.1.0
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Resolve version
+        shell: pwsh
+        env:
+          INPUT_TAG: ${{ inputs.tag }}
+          REF_NAME: ${{ github.ref_name }}
+        run: |
+          $tag = if ($env:INPUT_TAG) { $env:INPUT_TAG } else { $env:REF_NAME }
+          if ($tag -notmatch '^v(\d+\.\d+\.\d+)(-[0-9A-Za-z.]+)?$') { throw "Tag '$tag' must look like v1.2.3 or v1.2.3-beta.1" }
+          "TAG=$tag" >> $env:GITHUB_ENV
+          "VERSION=$($tag.Substring(1))" >> $env:GITHUB_ENV
+          "PRERELEASE=$(if ($Matches[2]) { 'true' } else { 'false' })" >> $env:GITHUB_ENV
+
+      - name: Test
+        run: dotnet test tests/Satchel.Tests/Satchel.Tests.csproj -c Release
+
+      - name: Publish
+        shell: pwsh
+        run: |
+          $common = @('-c', 'Release', '-r', 'win-x64', '-p:PublishSingleFile=true', '-p:PublishReadyToRun=true',
+                      '-p:DebugType=none', "-p:Version=$env:VERSION")
+          dotnet publish src/Satchel/Satchel.csproj @common --self-contained false -o out/framework-dependent
+          if ($LASTEXITCODE) { throw "framework-dependent publish failed" }
+          dotnet publish src/Satchel/Satchel.csproj @common --self-contained true -p:IncludeNativeLibrariesForSelfExtract=true -o out/self-contained
+          if ($LASTEXITCODE) { throw "self-contained publish failed" }
+
+      - name: Package
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force dist | Out-Null
+          foreach ($kind in 'framework-dependent', 'self-contained') {
+            Copy-Item README.md, LICENSE "out/$kind/"
+          }
+          Compress-Archive -Path out/framework-dependent/* -DestinationPath "dist/Satchel-$env:TAG-win-x64.zip"
+          Compress-Archive -Path out/self-contained/* -DestinationPath "dist/Satchel-$env:TAG-win-x64-self-contained.zip"
+          Get-ChildItem dist/*.zip | ForEach-Object {
+            "{0}  {1}" -f (Get-FileHash $_ -Algorithm SHA256).Hash.ToLower(), $_.Name
+          } | Set-Content -Encoding ascii dist/SHA256SUMS.txt
+          Get-Content dist/SHA256SUMS.txt
+          (Get-Content .github/release-notes.md -Raw).Replace('{TAG}', $env:TAG) | Set-Content -Encoding utf8 notes.md
+
+      - name: Attest build provenance
+        uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
+        with:
+          subject-path: |
+            dist/*.zip
+            out/framework-dependent/Satchel.exe
+            out/self-contained/Satchel.exe
+
+      - name: Create or update release
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $assets = Get-ChildItem dist -File | ForEach-Object { $_.FullName }
+          gh release view $env:TAG *> $null
+          if ($LASTEXITCODE -eq 0) {
+            gh release upload $env:TAG @assets --clobber
+          } else {
+            $flags = @('--title', "Satchel $env:TAG", '--notes-file', 'notes.md', '--generate-notes', '--verify-tag')
+            if ($env:PRERELEASE -eq 'true') { $flags += '--prerelease' }
+            gh release create $env:TAG @assets @flags
+          }
+          if ($LASTEXITCODE) { throw "gh release failed" }
