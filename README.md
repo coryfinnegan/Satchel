@@ -1,5 +1,8 @@
 # Satchel
 
+[![CI](https://github.com/coryfinnegan/Satchel/actions/workflows/ci.yml/badge.svg)](https://github.com/coryfinnegan/Satchel/actions/workflows/ci.yml)
+[![Release](https://img.shields.io/github/v/release/coryfinnegan/Satchel?include_prereleases)](https://github.com/coryfinnegan/Satchel/releases)
+
 An ad-free World of Warcraft addon manager for Windows. It does what WowUp does day to day (finds your
 game installs, tracks your addons, and keeps them updated) with no ads, no telemetry and no Electron.
 
@@ -12,10 +15,20 @@ game installs, tracks your addons, and keeps them updated) with no ads, no telem
   fails, the old version is put back. Removing an addon sends it to the Recycle Bin.
 - **Hands-off if you want.** Per-addon auto-update, beta/alpha channels, ignore, background checks and a tray icon.
 
-## Install
+## Download
 
-Requires Windows 10/11 and the [.NET 10 Desktop Runtime](https://dotnet.microsoft.com/download/dotnet/10.0)
-(or build self-contained, below).
+Grab the latest zip from [Releases](https://github.com/coryfinnegan/Satchel/releases/latest), unzip it anywhere, and run
+`Satchel.exe`:
+
+- `Satchel-vX.Y.Z-win-x64.zip`: small; needs the [.NET 10 Desktop Runtime](https://dotnet.microsoft.com/download/dotnet/10.0).
+- `Satchel-vX.Y.Z-win-x64-self-contained.zip`: runs with nothing else installed.
+
+Builds aren't code-signed, so SmartScreen may warn on first run. Each release has SHA-256 checksums and a signed build
+provenance attestation: `gh attestation verify <zip> --repo coryfinnegan/Satchel`.
+
+## Build from source
+
+Requires Windows 10/11 and the .NET 10 SDK.
 
 ```powershell
 .\build.ps1          # publishes to .\dist\Satchel
@@ -67,6 +80,15 @@ $env:SATCHEL_HOME = "C:\temp\satchel-sandbox"           # run the app against a 
 - `src/Satchel.Core`: providers, TOC parsing, fingerprinting, scanning, install engine, storage (no UI).
 - `src/Satchel`: WPF app (MVVM, dark theme, tray).
 - `tests/Satchel.Tests`: xUnit tests.
+
+CI (`.github/workflows/ci.yml`) builds, tests and publishes on every push and pull request. To release, push a tag:
+
+```powershell
+git tag v1.2.3; git push origin v1.2.3     # v1.2.3-beta.1 makes a pre-release
+```
+
+`.github/workflows/release.yml` tests, builds both zips, attests them and publishes the GitHub release. To rebuild an
+existing tag, run the workflow by hand from the Actions tab.
 
 ## Credits and license
 

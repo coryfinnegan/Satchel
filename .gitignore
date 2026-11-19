@@ -4,3 +4,6 @@ dist/
 *.user
 .vs/
 TestResults/
+out/
+artifacts/
+notes.md
