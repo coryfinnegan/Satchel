@@ -618,10 +618,67 @@ public sealed class MainViewModel : ObservableObject
 
     public Task UpdateAllFromTrayAsync() => UpdateAllAsync();
 
-    /// <summary>Installs zips the user downloaded (button or drag-and-drop) and tracks them.</summary>
-    public async Task InstallFromFilesAsync(IReadOnlyList<string> zipPaths)
+    private CancellationTokenSource? _manualWait;
+
+    /// <summary>
+    /// For addons whose author only allows website downloads: opens the file's download on CurseForge, then installs
+    /// the zip the moment it lands in Downloads. Returns true if it was installed.
+    /// </summary>
+    public async Task<bool> FetchManualDownloadAsync(string name, string websiteUrl, string fileId, string fileName, Action<bool>? setBusy = null)
     {
-        if (Selected is not { } inst || zipPaths.Count == 0) return;
+        if (Selected is not { } inst) return false;
+        Shell.OpenUrl(ManualDownload.DownloadPageUrl(websiteUrl, fileId));
+        if (string.IsNullOrWhiteSpace(fileName))
+        {
+            ShowBanner(BannerKind.Info, $"Download {name} from the CurseForge page that just opened, then drop the zip onto Satchel.");
+            return false;
+        }
+
+        _manualWait?.Cancel();
+        var cts = _manualWait = CancellationTokenSource.CreateLinkedTokenSource(ShutdownToken);
+        var downloads = Shell.DownloadsFolder;
+        ShowBanner(BannerKind.Info,
+            $"CurseForge is opening the download for {name}. Satchel will install {fileName} from your Downloads folder as soon as it finishes.",
+            "Cancel", () => cts.Cancel());
+        setBusy?.Invoke(true);
+        try
+        {
+            var path = await ManualDownload.WaitForZipAsync(downloads, fileName, TimeSpan.FromMinutes(15), cts.Token);
+            if (path == null)
+            {
+                ShowBanner(BannerKind.Warning, $"Didn't see {fileName} in {downloads}. If your browser saved it somewhere else, drop the zip onto Satchel.");
+                return false;
+            }
+            setBusy?.Invoke(false);
+            await InstallFromFilesAsync([path], inst);
+            return true;
+        }
+        catch (OperationCanceledException)
+        {
+            if (!ShutdownToken.IsCancellationRequested) ShowBanner(BannerKind.Info, $"Stopped waiting for {fileName}.");
+            return false;
+        }
+        finally
+        {
+            setBusy?.Invoke(false);
+            if (ReferenceEquals(_manualWait, cts)) _manualWait = null;
+        }
+    }
+
+    public async void FetchManualUpdate(AddonRowViewModel row)
+    {
+        var m = row.Model;
+        await FetchManualDownloadAsync(row.Name, m.WebsiteUrl, m.LatestFileId, m.LatestFileName, busy =>
+        {
+            row.IsBusy = busy;
+            row.BusyText = busy ? "Waiting for download…" : "";
+        });
+    }
+
+    /// <summary>Installs zips the user downloaded (button or drag-and-drop) and tracks them.</summary>
+    public async Task InstallFromFilesAsync(IReadOnlyList<string> zipPaths, WowInstallation? target = null)
+    {
+        if ((target ?? Selected) is not { } inst || zipPaths.Count == 0) return;
         var messages = new List<string>();
         var failed = false;
         BeginBusy("Installing…");

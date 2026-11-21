@@ -334,6 +334,7 @@ public sealed class AddonManager(AddonStore store, SettingsStore settings, Provi
         addon.UnavailableReason = remote.UnavailableReason;
         addon.ManualDownloadOnly = remote.ManualDownloadOnly;
         addon.LatestFileId = file.FileId;
+        addon.LatestFileName = file.FileName;
         addon.LatestVersion = file.Version;
         addon.LatestReleasedAt = file.ReleasedAt;
         addon.LatestChannel = file.Channel;

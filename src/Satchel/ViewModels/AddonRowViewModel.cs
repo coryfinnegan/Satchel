@@ -38,6 +38,7 @@ public sealed class AddonRowViewModel : ObservableObject
         SetAlphaCommand = new RelayCommand(() => _owner.SetChannel(this, AddonChannel.Alpha), () => IsManaged);
         OpenWebsiteCommand = new RelayCommand(() => Shell.OpenUrl(Model.WebsiteUrl), () => Model.WebsiteUrl.Length > 0);
         OpenFolderCommand = new RelayCommand(() => _owner.OpenAddonFolder(this));
+        GetManualUpdateCommand = new RelayCommand(() => _owner.FetchManualUpdate(this), () => !IsBusy && State == RowState.ManualUpdate);
     }
 
     public Addon Model { get; private set; }
@@ -190,8 +191,8 @@ public sealed class AddonRowViewModel : ObservableObject
                 RowState.Unavailable => Model.UnavailableReason,
                 RowState.Local => "Installed manually and not matched to any source. Use Get Addons to install a tracked copy.",
                 RowState.UpdateAvailable => $"{Model.InstalledVersion} → {Model.LatestVersion}",
-                RowState.ManualUpdate => $"{Model.InstalledVersion} → {Model.LatestVersion}{Environment.NewLine}The author only allows downloads from the CurseForge website. Download the zip there, then drop it onto Satchel (or use Get addons → Install from file) and Satchel keeps tracking it.",
-                RowState.UpToDate when Model.ManualDownloadOnly => "Up to date. The author only allows downloads from the CurseForge website. Download the zip there, then drop it onto Satchel (or use Get addons → Install from file) and Satchel keeps tracking it.",
+                RowState.ManualUpdate => $"{Model.InstalledVersion} → {Model.LatestVersion}{Environment.NewLine}The author only allows downloads from the CurseForge website, so this opens the download there. Satchel installs the zip automatically as soon as it lands in your Downloads folder.",
+                RowState.UpToDate when Model.ManualDownloadOnly => "Up to date. The author only allows downloads from the CurseForge website, so this opens the download there. Satchel installs the zip automatically as soon as it lands in your Downloads folder.",
                 RowState.Ignored => "Updates are ignored for this addon.",
                 _ => Model.LastCheckedAt is { } c ? $"Checked {Relative(c)}" : "",
             };
@@ -211,6 +212,7 @@ public sealed class AddonRowViewModel : ObservableObject
     public ICommand SetAlphaCommand { get; }
     public ICommand OpenWebsiteCommand { get; }
     public ICommand OpenFolderCommand { get; }
+    public ICommand GetManualUpdateCommand { get; }
 
     public static string Relative(DateTimeOffset when)
     {

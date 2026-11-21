@@ -96,6 +96,9 @@ public sealed class Addon
 
     public string LatestFileId { get; set; } = "";
 
+    /// <summary>File name of the latest build (e.g. CheapUpgrades-0.18.3.zip), used to spot manual downloads.</summary>
+    public string LatestFileName { get; set; } = "";
+
     public DateTimeOffset? LatestReleasedAt { get; set; }
 
     public AddonChannel? LatestChannel { get; set; }

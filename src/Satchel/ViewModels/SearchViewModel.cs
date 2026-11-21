@@ -23,7 +23,7 @@ public sealed class SearchRowViewModel : ObservableObject
         InstallCommand = new RelayCommand(
             () =>
             {
-                if (Remote.ManualDownloadOnly) Shell.OpenUrl(Remote.WebsiteUrl);
+                if (Remote.ManualDownloadOnly) _owner.FetchManual(this);
                 else _owner.Install(this);
             },
             () => !IsBusy && !IsInstalled && (Remote.ManualDownloadOnly || Remote.UnavailableReason.Length == 0));
@@ -68,7 +68,7 @@ public sealed class SearchRowViewModel : ObservableObject
     public bool IsManualOnly => Remote.ManualDownloadOnly && !IsInstalled;
 
     public string ButtonTooltip => Remote.ManualDownloadOnly
-        ? "The author only allows downloads from the CurseForge website. Download the zip there, then drop it onto Satchel (or use Get addons → Install from file) and Satchel keeps tracking it."
+        ? "The author only allows downloads from the CurseForge website, so this opens the download there. Satchel installs the zip automatically as soon as it lands in your Downloads folder."
         : Remote.UnavailableReason;
 
     public bool IsInstalled
@@ -108,7 +108,7 @@ public sealed class SearchRowViewModel : ObservableObject
 
     public string ButtonText => IsBusy ? BusyText
         : IsInstalled ? "Installed"
-        : Remote.ManualDownloadOnly ? "Get on CurseForge"
+        : Remote.ManualDownloadOnly ? "Get from CurseForge"
         : Remote.UnavailableReason.Length > 0 ? "Unavailable"
         : "Install";
 
@@ -314,6 +314,18 @@ public sealed class SearchViewModel : ObservableObject
                 if (i < b.Count) yield return b[i];
             }
         }
+    }
+
+    public async void FetchManual(SearchRowViewModel row)
+    {
+        if (_main.Selected is not { } inst || row.IsBusy) return;
+        var file = row.Remote.PickFile(inst.DefaultChannel) ?? row.Remote.PickFile(AddonChannel.Alpha);
+        var installed = await _main.FetchManualDownloadAsync(row.Name, row.Remote.WebsiteUrl, file?.FileId ?? "", file?.FileName ?? "", busy =>
+        {
+            row.IsBusy = busy;
+            row.BusyText = busy ? "Waiting for download…" : "";
+        });
+        if (installed) RefreshInstalledFlags();
     }
 
     public async void Install(SearchRowViewModel row)

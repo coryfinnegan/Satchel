@@ -113,7 +113,7 @@
                 <Grid Grid.Column="3" VerticalAlignment="Center" ToolTip="{Binding StatusTooltip}">
                     <Button Style="{StaticResource PrimaryButton}" Content="Update" Padding="16,5" HorizontalAlignment="Left"
                             Command="{Binding UpdateCommand}" Visibility="{Binding State, Converter={StaticResource EqVis}, ConverterParameter=UpdateAvailable}" />
-                    <Button Padding="12,5" HorizontalAlignment="Left" Command="{Binding OpenWebsiteCommand}"
+                    <Button Padding="12,5" HorizontalAlignment="Left" Command="{Binding GetManualUpdateCommand}"
                             Foreground="{StaticResource Accent}" BorderBrush="#66F0B232"
                             Visibility="{Binding State, Converter={StaticResource EqVis}, ConverterParameter=ManualUpdate}">
                         <StackPanel Orientation="Horizontal">

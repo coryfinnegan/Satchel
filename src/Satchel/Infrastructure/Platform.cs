@@ -31,6 +31,30 @@ public sealed class DpapiProtector : ISecretProtector
 
 public static class Shell
 {
+    /// <summary>The user's Downloads folder (honours a relocated folder), falling back to %USERPROFILE%\Downloads.</summary>
+    public static string DownloadsFolder
+    {
+        get
+        {
+            try
+            {
+                if (SHGetKnownFolderPath(new Guid("374DE290-123F-4565-9164-39C4925E467B"), 0, IntPtr.Zero, out var ptr) == 0)
+                {
+                    var path = System.Runtime.InteropServices.Marshal.PtrToStringUni(ptr);
+                    System.Runtime.InteropServices.Marshal.FreeCoTaskMem(ptr);
+                    if (!string.IsNullOrEmpty(path)) return path;
+                }
+            }
+            catch (Exception)
+            {
+            }
+            return Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), "Downloads");
+        }
+    }
+
+    [System.Runtime.InteropServices.DllImport("shell32.dll")]
+    private static extern int SHGetKnownFolderPath([System.Runtime.InteropServices.MarshalAs(System.Runtime.InteropServices.UnmanagedType.LPStruct)] Guid rfid, uint flags, IntPtr token, out IntPtr path);
+
     public static void OpenUrl(string? url)
     {
         if (string.IsNullOrWhiteSpace(url)) return;
