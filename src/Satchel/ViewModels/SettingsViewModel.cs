@@ -93,6 +93,10 @@ public sealed class SettingsViewModel : ObservableObject
         TestCurseForgeKeyCommand = new AsyncCommand(TestCurseForgeKeyAsync, () => HasCurseForgeKey);
         RemoveCurseForgeKeyCommand = new RelayCommand(() => SaveCurseForgeKey(""), () => HasCurseForgeKey);
         RemoveGitHubTokenCommand = new RelayCommand(() => SaveGitHubToken(""), () => HasGitHubToken);
+        ReplaceCurseKeyCommand = new RelayCommand(() => SetEditing(curse: true, editing: true));
+        CancelCurseKeyCommand = new RelayCommand(() => SetEditing(curse: true, editing: false));
+        ReplaceGitHubTokenCommand = new RelayCommand(() => SetEditing(curse: false, editing: true));
+        CancelGitHubTokenCommand = new RelayCommand(() => SetEditing(curse: false, editing: false));
         GetCurseForgeKeyCommand = new RelayCommand(() => Shell.OpenUrl("https://console.curseforge.com/"));
         OpenDataFolderCommand = new RelayCommand(() => Shell.OpenFolder(AppPaths.DataDir));
         OpenLogsCommand = new RelayCommand(() => Shell.OpenFolder(AppPaths.LogsDir));
@@ -114,8 +118,10 @@ public sealed class SettingsViewModel : ObservableObject
         {
             Installations.Add(new InstallationRowViewModel(inst, this, _store.ForInstallation(inst.Id).Count));
         }
-        CurseKeyStatus = HasCurseForgeKey ? "A key is saved (encrypted for your Windows account)." : "";
-        GitHubStatus = HasGitHubToken ? "A token is saved." : "";
+        _editingCurseKey = false;
+        _editingGitHubToken = false;
+        CurseKeyStatus = "";
+        GitHubStatus = "";
         OnAllPropertiesChanged();
     }
 
@@ -124,6 +130,28 @@ public sealed class SettingsViewModel : ObservableObject
     public bool HasCurseForgeKey => !string.IsNullOrWhiteSpace(_settings.CurseForgeApiKey);
 
     public bool HasGitHubToken => !string.IsNullOrWhiteSpace(_settings.GitHubToken);
+
+    private bool _editingCurseKey;
+    private bool _editingGitHubToken;
+
+    /// <summary>A saved key is shown as "Key saved" (never the key itself); the entry box appears only to add or replace one.</summary>
+    public bool ShowCurseKeySaved => HasCurseForgeKey && !_editingCurseKey;
+
+    public bool ShowCurseKeyEditor => !ShowCurseKeySaved;
+
+    public bool ShowGitHubTokenSaved => HasGitHubToken && !_editingGitHubToken;
+
+    public bool ShowGitHubTokenEditor => !ShowGitHubTokenSaved;
+
+    private void SetEditing(bool curse, bool editing)
+    {
+        if (curse) _editingCurseKey = editing;
+        else _editingGitHubToken = editing;
+        OnPropertyChanged(nameof(ShowCurseKeySaved));
+        OnPropertyChanged(nameof(ShowCurseKeyEditor));
+        OnPropertyChanged(nameof(ShowGitHubTokenSaved));
+        OnPropertyChanged(nameof(ShowGitHubTokenEditor));
+    }
 
     public string CurseKeyStatus
     {
@@ -142,6 +170,7 @@ public sealed class SettingsViewModel : ObservableObject
         _settings.CurseForgeApiKey = key;
         _settings.Save();
         OnPropertyChanged(nameof(HasCurseForgeKey));
+        SetEditing(curse: true, editing: false);
         CurseKeyStatus = HasCurseForgeKey ? "Saved. Testing…" : "Key removed.";
         CommandManager.InvalidateRequerySuggested();
         _main.SyncRows();
@@ -156,6 +185,7 @@ public sealed class SettingsViewModel : ObservableObject
         _settings.GitHubToken = token;
         _settings.Save();
         OnPropertyChanged(nameof(HasGitHubToken));
+        SetEditing(curse: false, editing: false);
         GitHubStatus = HasGitHubToken ? "Token saved." : "Token removed.";
         CommandManager.InvalidateRequerySuggested();
     }
@@ -352,6 +382,10 @@ public sealed class SettingsViewModel : ObservableObject
     public ICommand RemoveCurseForgeKeyCommand { get; }
     public ICommand RemoveGitHubTokenCommand { get; }
     public ICommand GetCurseForgeKeyCommand { get; }
+    public ICommand ReplaceCurseKeyCommand { get; }
+    public ICommand CancelCurseKeyCommand { get; }
+    public ICommand ReplaceGitHubTokenCommand { get; }
+    public ICommand CancelGitHubTokenCommand { get; }
     public ICommand OpenDataFolderCommand { get; }
     public ICommand OpenLogsCommand { get; }
 }

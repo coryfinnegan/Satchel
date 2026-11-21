@@ -105,6 +105,9 @@ public sealed class Addon
     /// <summary>Set when the provider could not supply a build for this client (or the addon was removed).</summary>
     public string UnavailableReason { get; set; } = "";
 
+    /// <summary>The author only allows downloads from the provider's website; updates are fetched by hand.</summary>
+    public bool ManualDownloadOnly { get; set; }
+
     public DateTimeOffset? LastCheckedAt { get; set; }
 
     [JsonIgnore]

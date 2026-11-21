@@ -4,6 +4,7 @@
         xmlns:vm="clr-namespace:Satchel.ViewModels"
         xmlns:infra="clr-namespace:Satchel.Infrastructure"
         Title="Satchel" Width="1180" Height="760" MinWidth="920" MinHeight="560"
+        AllowDrop="True" DragOver="Window_DragOver" Drop="Window_Drop"
         Background="{StaticResource Bg}" Foreground="{StaticResource Text}"
         FontFamily="{StaticResource UiFont}" FontSize="13"
         UseLayoutRounding="True" SnapsToDevicePixels="True"
@@ -112,6 +113,14 @@
                 <Grid Grid.Column="3" VerticalAlignment="Center" ToolTip="{Binding StatusTooltip}">
                     <Button Style="{StaticResource PrimaryButton}" Content="Update" Padding="16,5" HorizontalAlignment="Left"
                             Command="{Binding UpdateCommand}" Visibility="{Binding State, Converter={StaticResource EqVis}, ConverterParameter=UpdateAvailable}" />
+                    <Button Padding="12,5" HorizontalAlignment="Left" Command="{Binding OpenWebsiteCommand}"
+                            Foreground="{StaticResource Accent}" BorderBrush="#66F0B232"
+                            Visibility="{Binding State, Converter={StaticResource EqVis}, ConverterParameter=ManualUpdate}">
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock Text="Get update" />
+                            <TextBlock Text="&#xE8A7;" Style="{StaticResource Icon}" FontSize="11" Margin="7,1,0,0" />
+                        </StackPanel>
+                    </Button>
                     <StackPanel Visibility="{Binding State, Converter={StaticResource EqVis}, ConverterParameter=Busy}" Margin="0,0,16,0">
                         <TextBlock Text="{Binding BusyText}" FontSize="12" Foreground="{StaticResource Muted}" />
                         <ProgressBar Value="{Binding Progress, Mode=OneWay}" Maximum="1" Margin="0,5,0,0" />
@@ -163,7 +172,8 @@
                     <TextBlock Text="{Binding ProviderName}" FontSize="11.5" Foreground="{StaticResource Muted}" />
                 </Border>
                 <Grid Grid.Column="4" VerticalAlignment="Center" Margin="0,0,12,0">
-                    <Button Content="{Binding ButtonText}" Command="{Binding InstallCommand}" Padding="14,6" HorizontalAlignment="Stretch" ToolTip="{Binding UnavailableReason}">
+                    <Button Content="{Binding ButtonText}" Command="{Binding InstallCommand}" Padding="14,6" HorizontalAlignment="Stretch" ToolTip="{Binding ButtonTooltip}"
+                            ToolTipService.ShowOnDisabled="True">
                         <Button.Style>
                             <Style TargetType="Button" BasedOn="{StaticResource PrimaryButton}">
                                 <Style.Triggers>
@@ -171,6 +181,12 @@
                                         <Setter Property="Background" Value="{StaticResource Surface2}" />
                                         <Setter Property="BorderBrush" Value="{StaticResource BorderBrush}" />
                                         <Setter Property="Foreground" Value="{StaticResource Success}" />
+                                    </DataTrigger>
+                                    <DataTrigger Binding="{Binding IsManualOnly}" Value="True">
+                                        <Setter Property="Background" Value="{StaticResource Surface2}" />
+                                        <Setter Property="BorderBrush" Value="#66F0B232" />
+                                        <Setter Property="Foreground" Value="{StaticResource Accent}" />
+                                        <Setter Property="FontWeight" Value="Normal" />
                                     </DataTrigger>
                                 </Style.Triggers>
                             </Style>
@@ -427,6 +443,7 @@
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="*" />
                         <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="Auto" />
                     </Grid.ColumnDefinitions>
                     <Grid>
                         <TextBox Text="{Binding Url, UpdateSourceTrigger=PropertyChanged}" Tag="Or paste a link from CurseForge, WoWInterface, GitHub or Tukui" Padding="32,7,9,7">
@@ -437,6 +454,13 @@
                         <TextBlock Text="&#xE71B;" Style="{StaticResource Icon}" Foreground="{StaticResource Dim}" Margin="11,0,0,0" HorizontalAlignment="Left" IsHitTestVisible="False" />
                     </Grid>
                     <Button Grid.Column="1" Content="Install from link" Margin="10,0,0,0" Command="{Binding InstallFromUrlCommand}" />
+                    <Button Grid.Column="2" Margin="8,0,0,0" Command="{Binding InstallFromFileCommand}" AutomationProperties.Name="Install from file"
+                            ToolTip="Install a .zip you downloaded yourself (you can also drop zips onto the window). Satchel identifies it and tracks updates.">
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock Text="&#xE8E5;" Style="{StaticResource Icon}" Margin="0,0,8,0" />
+                            <TextBlock Text="Install from file…" />
+                        </StackPanel>
+                    </Button>
                 </Grid>
 
                 <Grid Grid.Row="2" Margin="0,18,0,8">
@@ -466,20 +490,40 @@
                                 sign in at console.curseforge.com, create an API key, and paste it here. It's stored encrypted for your
                                 Windows account and only ever sent to CurseForge.
                             </TextBlock>
-                            <Grid>
+                            <Grid Visibility="{Binding ShowCurseKeySaved, Converter={StaticResource Vis}}">
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition Width="*" />
                                     <ColumnDefinition Width="Auto" />
                                     <ColumnDefinition Width="Auto" />
                                     <ColumnDefinition Width="Auto" />
                                 </Grid.ColumnDefinitions>
-                                <PasswordBox x:Name="CurseKeyBox" AutomationProperties.Name="CurseForge API key" />
-                                <Button Grid.Column="1" Style="{StaticResource PrimaryButton}" Content="Save key" Margin="10,0,0,0" Click="SaveCurseKey_Click" />
+                                <Border Background="{StaticResource SuccessSoft}" BorderBrush="#554FBF7F" BorderThickness="1" CornerRadius="6" Padding="11,8">
+                                    <StackPanel Orientation="Horizontal">
+                                        <TextBlock Text="&#xE73E;" Style="{StaticResource Icon}" FontSize="12" Foreground="{StaticResource Success}" Margin="0,0,9,0" />
+                                        <TextBlock Text="Key saved" FontWeight="SemiBold" />
+                                        <TextBlock Text="  ••••••••••••  stored encrypted, CurseForge is on" Foreground="{StaticResource Muted}" />
+                                    </StackPanel>
+                                </Border>
+                                <Button Grid.Column="1" Content="Replace" Margin="10,0,0,0" Command="{Binding ReplaceCurseKeyCommand}" />
                                 <Button Grid.Column="2" Content="Test" Margin="8,0,0,0" Command="{Binding TestCurseForgeKeyCommand}" />
                                 <Button Grid.Column="3" Style="{StaticResource GhostButton}" Content="Remove" Margin="4,0,0,0" Command="{Binding RemoveCurseForgeKeyCommand}" />
                             </Grid>
+                            <Grid Visibility="{Binding ShowCurseKeyEditor, Converter={StaticResource Vis}}">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <PasswordBox x:Name="CurseKeyBox" AutomationProperties.Name="CurseForge API key" KeyDown="CurseKeyBox_KeyDown" />
+                                <Button Grid.Column="1" Style="{StaticResource PrimaryButton}" Content="Save key" Margin="10,0,0,0" Click="SaveCurseKey_Click" />
+                                <Button Grid.Column="2" Style="{StaticResource GhostButton}" Content="Cancel" Margin="4,0,0,0" Command="{Binding CancelCurseKeyCommand}"
+                                        Visibility="{Binding HasCurseForgeKey, Converter={StaticResource Vis}}" />
+                            </Grid>
                             <StackPanel Orientation="Horizontal" Margin="0,8,0,0">
-                                <TextBlock Text="{Binding CurseKeyStatus}" Style="{StaticResource Hint}" Foreground="{StaticResource Text}" Margin="0,0,14,0" />
+                                <TextBlock Text="{Binding CurseKeyStatus}" Style="{StaticResource Hint}" Foreground="{StaticResource Text}" Margin="0,0,14,0"
+                                           Visibility="{Binding CurseKeyStatus, Converter={StaticResource Vis}}" />
+                                <TextBlock Text="Paste the key and press Enter." Style="{StaticResource Hint}" Margin="0,0,14,0"
+                                           Visibility="{Binding ShowCurseKeyEditor, Converter={StaticResource Vis}}" />
                                 <Button Style="{StaticResource LinkButton}" Content="Get a free key at console.curseforge.com" Command="{Binding GetCurseForgeKeyCommand}" />
                             </StackPanel>
 
@@ -488,17 +532,35 @@
                             <TextBlock Text="GitHub token (optional)" FontWeight="SemiBold" Margin="0,0,0,6" />
                             <TextBlock Style="{StaticResource Hint}" Margin="0,0,0,10"
                                        Text="Only needed if you track lots of GitHub addons: it raises GitHub's limit from 60 to 5,000 requests an hour. A token with no scopes is enough." />
-                            <Grid>
+                            <Grid Visibility="{Binding ShowGitHubTokenSaved, Converter={StaticResource Vis}}">
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition Width="*" />
                                     <ColumnDefinition Width="Auto" />
                                     <ColumnDefinition Width="Auto" />
                                 </Grid.ColumnDefinitions>
-                                <PasswordBox x:Name="GitHubTokenBox" AutomationProperties.Name="GitHub token" />
-                                <Button Grid.Column="1" Content="Save token" Margin="10,0,0,0" Click="SaveGitHubToken_Click" />
+                                <Border Background="{StaticResource SuccessSoft}" BorderBrush="#554FBF7F" BorderThickness="1" CornerRadius="6" Padding="11,8">
+                                    <StackPanel Orientation="Horizontal">
+                                        <TextBlock Text="&#xE73E;" Style="{StaticResource Icon}" FontSize="12" Foreground="{StaticResource Success}" Margin="0,0,9,0" />
+                                        <TextBlock Text="Token saved" FontWeight="SemiBold" />
+                                        <TextBlock Text="  ••••••••••••  stored encrypted" Foreground="{StaticResource Muted}" />
+                                    </StackPanel>
+                                </Border>
+                                <Button Grid.Column="1" Content="Replace" Margin="10,0,0,0" Command="{Binding ReplaceGitHubTokenCommand}" />
                                 <Button Grid.Column="2" Style="{StaticResource GhostButton}" Content="Remove" Margin="4,0,0,0" Command="{Binding RemoveGitHubTokenCommand}" />
                             </Grid>
-                            <TextBlock Text="{Binding GitHubStatus}" Style="{StaticResource Hint}" Margin="0,8,0,0" />
+                            <Grid Visibility="{Binding ShowGitHubTokenEditor, Converter={StaticResource Vis}}">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <PasswordBox x:Name="GitHubTokenBox" AutomationProperties.Name="GitHub token" KeyDown="GitHubTokenBox_KeyDown" />
+                                <Button Grid.Column="1" Content="Save token" Margin="10,0,0,0" Click="SaveGitHubToken_Click" />
+                                <Button Grid.Column="2" Style="{StaticResource GhostButton}" Content="Cancel" Margin="4,0,0,0" Command="{Binding CancelGitHubTokenCommand}"
+                                        Visibility="{Binding HasGitHubToken, Converter={StaticResource Vis}}" />
+                            </Grid>
+                            <TextBlock Text="{Binding GitHubStatus}" Style="{StaticResource Hint}" Margin="0,8,0,0"
+                                       Visibility="{Binding GitHubStatus, Converter={StaticResource Vis}}" />
 
                             <TextBlock Style="{StaticResource Hint}" Margin="0,16,0,0" Text="WoWInterface and Tukui (ElvUI) work without any key." />
                         </StackPanel>
