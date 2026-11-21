@@ -124,6 +124,40 @@ public partial class MainWindow : Window
         GitHubTokenBox.Clear();
     }
 
+    private void CurseKeyBox_KeyDown(object sender, KeyEventArgs e)
+    {
+        if (e.Key != Key.Enter) return;
+        e.Handled = true;
+        SaveCurseKey_Click(sender, e);
+    }
+
+    private void GitHubTokenBox_KeyDown(object sender, KeyEventArgs e)
+    {
+        if (e.Key != Key.Enter) return;
+        e.Handled = true;
+        SaveGitHubToken_Click(sender, e);
+    }
+
+    private static string[] DroppedZips(DragEventArgs e) =>
+        e.Data.GetData(DataFormats.FileDrop) is string[] files
+            ? files.Where(f => f.EndsWith(".zip", StringComparison.OrdinalIgnoreCase) && System.IO.File.Exists(f)).ToArray()
+            : [];
+
+    private void Window_DragOver(object sender, DragEventArgs e)
+    {
+        e.Effects = DroppedZips(e).Length > 0 && _vm.Selected != null ? DragDropEffects.Copy : DragDropEffects.None;
+        e.Handled = true;
+    }
+
+    private async void Window_Drop(object sender, DragEventArgs e)
+    {
+        var zips = DroppedZips(e);
+        if (zips.Length == 0) return;
+        e.Handled = true;
+        _vm.Page = AppPage.MyAddons;
+        await _vm.InstallFromFilesAsync(zips);
+    }
+
     // Windows 11: dark caption that matches the app background.
     private void UseDarkTitleBar()
     {

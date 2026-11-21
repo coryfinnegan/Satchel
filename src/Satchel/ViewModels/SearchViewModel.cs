@@ -20,7 +20,13 @@ public sealed class SearchRowViewModel : ObservableObject
     {
         Remote = remote;
         _owner = owner;
-        InstallCommand = new RelayCommand(() => _owner.Install(this), () => !IsBusy && !IsInstalled && Remote.UnavailableReason.Length == 0);
+        InstallCommand = new RelayCommand(
+            () =>
+            {
+                if (Remote.ManualDownloadOnly) _owner.FetchManual(this);
+                else _owner.Install(this);
+            },
+            () => !IsBusy && !IsInstalled && (Remote.ManualDownloadOnly || Remote.UnavailableReason.Length == 0));
         OpenWebsiteCommand = new RelayCommand(() => Shell.OpenUrl(Remote.WebsiteUrl), () => Remote.WebsiteUrl.Length > 0);
     }
 
@@ -59,12 +65,20 @@ public sealed class SearchRowViewModel : ObservableObject
 
     public string UnavailableReason => Remote.UnavailableReason;
 
+    public bool IsManualOnly => Remote.ManualDownloadOnly && !IsInstalled;
+
+    public string ButtonTooltip => Remote.ManualDownloadOnly
+        ? "The author only allows downloads from the CurseForge website, so this opens the download there. Satchel installs the zip automatically as soon as it lands in your Downloads folder."
+        : Remote.UnavailableReason;
+
     public bool IsInstalled
     {
         get => _isInstalled;
         set
         {
-            if (Set(ref _isInstalled, value)) OnPropertyChanged(nameof(ButtonText));
+            if (!Set(ref _isInstalled, value)) return;
+            OnPropertyChanged(nameof(ButtonText));
+            OnPropertyChanged(nameof(IsManualOnly));
         }
     }
 
@@ -92,7 +106,11 @@ public sealed class SearchRowViewModel : ObservableObject
         }
     }
 
-    public string ButtonText => IsBusy ? BusyText : IsInstalled ? "Installed" : Remote.UnavailableReason.Length > 0 ? "Unavailable" : "Install";
+    public string ButtonText => IsBusy ? BusyText
+        : IsInstalled ? "Installed"
+        : Remote.ManualDownloadOnly ? "Get from CurseForge"
+        : Remote.UnavailableReason.Length > 0 ? "Unavailable"
+        : "Install";
 
     public ICommand InstallCommand { get; }
 
@@ -119,6 +137,16 @@ public sealed class SearchViewModel : ObservableObject
         _manager = manager;
         SearchCommand = new AsyncCommand(() => RunSearchAsync(Query));
         InstallFromUrlCommand = new AsyncCommand(InstallFromUrlAsync, () => Url.Trim().Length > 0);
+        InstallFromFileCommand = new AsyncCommand(() =>
+        {
+            var dialog = new Microsoft.Win32.OpenFileDialog
+            {
+                Title = "Choose addon zip files to install",
+                Filter = "Addon archives (*.zip)|*.zip",
+                Multiselect = true,
+            };
+            return dialog.ShowDialog() == true ? _main.InstallFromFilesAsync(dialog.FileNames) : Task.CompletedTask;
+        });
         ClearCommand = new AsyncCommand(() =>
         {
             Query = "";
@@ -169,6 +197,8 @@ public sealed class SearchViewModel : ObservableObject
     public ICommand SearchCommand { get; }
 
     public ICommand InstallFromUrlCommand { get; }
+
+    public ICommand InstallFromFileCommand { get; }
 
     public ICommand ClearCommand { get; }
 
@@ -284,6 +314,18 @@ public sealed class SearchViewModel : ObservableObject
                 if (i < b.Count) yield return b[i];
             }
         }
+    }
+
+    public async void FetchManual(SearchRowViewModel row)
+    {
+        if (_main.Selected is not { } inst || row.IsBusy) return;
+        var file = row.Remote.PickFile(inst.DefaultChannel) ?? row.Remote.PickFile(AddonChannel.Alpha);
+        var installed = await _main.FetchManualDownloadAsync(row.Name, row.Remote.WebsiteUrl, file?.FileId ?? "", file?.FileName ?? "", busy =>
+        {
+            row.IsBusy = busy;
+            row.BusyText = busy ? "Waiting for download…" : "";
+        });
+        if (installed) RefreshInstalledFlags();
     }
 
     public async void Install(SearchRowViewModel row)

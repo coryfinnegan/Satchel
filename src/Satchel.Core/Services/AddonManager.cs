@@ -332,7 +332,9 @@ public sealed class AddonManager(AddonStore store, SettingsStore settings, Provi
         }
 
         addon.UnavailableReason = remote.UnavailableReason;
+        addon.ManualDownloadOnly = remote.ManualDownloadOnly;
         addon.LatestFileId = file.FileId;
+        addon.LatestFileName = file.FileName;
         addon.LatestVersion = file.Version;
         addon.LatestReleasedAt = file.ReleasedAt;
         addon.LatestChannel = file.Channel;
@@ -479,6 +481,53 @@ public sealed class AddonManager(AddonStore store, SettingsStore settings, Provi
             }
             catch { }
         }
+    }
+
+    /// <summary>
+    /// Installs a zip the user downloaded themselves (e.g. an addon whose author only allows website downloads),
+    /// then rescans so it's identified and tracked like any other addon. The user's zip is left where it is.
+    /// Returns the tracked row for the installed folders.
+    /// </summary>
+    public async Task<Addon?> InstallFromFileAsync(WowInstallation installation, string zipPath, CancellationToken ct)
+    {
+        IReadOnlyList<string> installed;
+        var carried = new List<Addon>();
+        var gate = LockFor(installation);
+        await gate.WaitAsync(ct).ConfigureAwait(false);
+        try
+        {
+            installed = await Task.Run(() => ArchiveInstaller.Install(installation, zipPath, [], new HashSet<string>()), ct).ConfigureAwait(false);
+            var set = installed.ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+            // Rows covering these folders describe the old files; drop them so the scan re-identifies the new ones,
+            // but remember per-addon choices (channel, auto-update, ignore) to restore if it's the same addon.
+            foreach (var row in store.ForInstallation(installation.Id).Where(a => a.Folders.Any(set.Contains)))
+            {
+                if (row.IsManaged) carried.Add(row);
+                store.Remove(row);
+            }
+            store.Save();
+        }
+        finally
+        {
+            gate.Release();
+        }
+
+        await ScanAsync(installation, identify: true, ct).ConfigureAwait(false);
+
+        var rows = store.ForInstallation(installation.Id).Where(a => a.Folders.Any(installed.Contains)).ToList();
+        foreach (var row in rows.Where(r => r.IsManaged))
+        {
+            var before = carried.FirstOrDefault(c => c.ProviderName == row.ProviderName && c.ExternalId == row.ExternalId);
+            if (before == null) continue;
+            row.Channel = before.Channel;
+            row.AutoUpdate = before.AutoUpdate;
+            row.Ignored = before.Ignored;
+        }
+        foreach (var row in rows) row.InstalledAt = DateTimeOffset.Now;
+        store.Save();
+        Log.Info($"Installed {Path.GetFileName(zipPath)} into {installation.DisplayName}: {string.Join(", ", installed)}");
+        return rows.OrderByDescending(r => r.IsManaged).ThenByDescending(r => r.Folders.Count).FirstOrDefault();
     }
 
     public async Task UninstallAsync(WowInstallation installation, Addon addon, CancellationToken ct)
