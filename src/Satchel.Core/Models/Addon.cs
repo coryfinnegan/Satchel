@@ -96,6 +96,9 @@ public sealed class Addon
 
     public string LatestFileId { get; set; } = "";
 
+    /// <summary>File name of the latest build (e.g. CheapUpgrades-0.18.3.zip), used to spot manual downloads.</summary>
+    public string LatestFileName { get; set; } = "";
+
     public DateTimeOffset? LatestReleasedAt { get; set; }
 
     public AddonChannel? LatestChannel { get; set; }
@@ -104,6 +107,9 @@ public sealed class Addon
 
     /// <summary>Set when the provider could not supply a build for this client (or the addon was removed).</summary>
     public string UnavailableReason { get; set; } = "";
+
+    /// <summary>The author only allows downloads from the provider's website; updates are fetched by hand.</summary>
+    public bool ManualDownloadOnly { get; set; }
 
     public DateTimeOffset? LastCheckedAt { get; set; }
 

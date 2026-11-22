@@ -124,7 +124,7 @@ public sealed class CurseForgeProvider(Func<string?> apiKey) : IAddonProvider
 
         if (string.IsNullOrEmpty(url))
         {
-            throw new ProviderException($"The author of {addon.Name} has turned off downloads from third-party apps. Download it from the CurseForge website instead.");
+            throw new ProviderException($"The author of {addon.Name} only allows downloads from the CurseForge website. Download the zip there, then drop it onto Satchel (or use Install from file) and Satchel will keep tracking it.");
         }
 
         var request = new HttpRequestMessage(HttpMethod.Get, url);
@@ -200,9 +200,7 @@ public sealed class CurseForgeProvider(Func<string?> apiKey) : IAddonProvider
             DownloadCount = (long)mod.DownloadCount,
             Files = files,
             KnownFolders = files.FirstOrDefault()?.Folders ?? [],
-            UnavailableReason = mod.AllowModDistribution == false
-                ? "The author has turned off downloads from third-party apps."
-                : "",
+            ManualDownloadOnly = mod.AllowModDistribution == false,
         };
     }
 

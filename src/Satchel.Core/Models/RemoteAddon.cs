@@ -25,8 +25,14 @@ public sealed class RemoteAddon
     /// <summary>Folder names the provider says this addon installs (may be empty if unknown).</summary>
     public List<string> KnownFolders { get; init; } = [];
 
-    /// <summary>Non-empty when the provider can't serve downloads (e.g. author opted out of third-party distribution).</summary>
+    /// <summary>Non-empty when the provider has nothing installable (e.g. no build for this game version).</summary>
     public string UnavailableReason { get; init; } = "";
+
+    /// <summary>
+    /// The author only allows downloads from the provider's website (CurseForge "allowModDistribution: false").
+    /// Satchel can still track it and show updates, but the zip has to be fetched by hand.
+    /// </summary>
+    public bool ManualDownloadOnly { get; init; }
 
     /// <summary>Picks the newest build allowed by the channel (Stable &lt; Beta &lt; Alpha).</summary>
     public RemoteFile? PickFile(AddonChannel channel) =>

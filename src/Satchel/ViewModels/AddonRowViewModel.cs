@@ -8,6 +8,7 @@ public enum RowState
 {
     UpdateAvailable,
     Busy,
+    ManualUpdate,
     UpToDate,
     NeedsKey,
     Unavailable,
@@ -28,7 +29,7 @@ public sealed class AddonRowViewModel : ObservableObject
         Model = model;
         _owner = owner;
         UpdateCommand = new RelayCommand(() => _owner.UpdateRow(this), () => !IsBusy && State == RowState.UpdateAvailable);
-        ReinstallCommand = new RelayCommand(() => _owner.ReinstallRow(this), () => !IsBusy && IsManaged && State != RowState.NeedsKey);
+        ReinstallCommand = new RelayCommand(() => _owner.ReinstallRow(this), () => !IsBusy && IsManaged && State != RowState.NeedsKey && !Model.ManualDownloadOnly);
         UninstallCommand = new RelayCommand(() => _owner.UninstallRow(this), () => !IsBusy);
         ToggleIgnoreCommand = new RelayCommand(() => _owner.SetIgnored(this, !Model.Ignored), () => IsManaged);
         ToggleAutoUpdateCommand = new RelayCommand(() => _owner.SetAutoUpdate(this, !Model.AutoUpdate), () => IsManaged);
@@ -37,6 +38,7 @@ public sealed class AddonRowViewModel : ObservableObject
         SetAlphaCommand = new RelayCommand(() => _owner.SetChannel(this, AddonChannel.Alpha), () => IsManaged);
         OpenWebsiteCommand = new RelayCommand(() => Shell.OpenUrl(Model.WebsiteUrl), () => Model.WebsiteUrl.Length > 0);
         OpenFolderCommand = new RelayCommand(() => _owner.OpenAddonFolder(this));
+        GetManualUpdateCommand = new RelayCommand(() => _owner.FetchManualUpdate(this), () => !IsBusy && State == RowState.ManualUpdate);
     }
 
     public Addon Model { get; private set; }
@@ -92,7 +94,7 @@ public sealed class AddonRowViewModel : ObservableObject
 
     public string LatestVersion => Model.LatestVersion;
 
-    public bool ShowLatest => State == RowState.UpdateAvailable && Model.LatestVersion.Length > 0 && Model.LatestVersion != Model.InstalledVersion;
+    public bool ShowLatest => State is RowState.UpdateAvailable or RowState.ManualUpdate && Model.LatestVersion.Length > 0 && Model.LatestVersion != Model.InstalledVersion;
 
     public string GameVersion => Model.GameVersion;
 
@@ -160,7 +162,8 @@ public sealed class AddonRowViewModel : ObservableObject
             if (Model.Ignored) return RowState.Ignored;
             if (!_owner.IsProviderAvailable(Model.ProviderName)) return RowState.NeedsKey;
             if (!string.IsNullOrEmpty(Model.UnavailableReason)) return RowState.Unavailable;
-            return Model.HasUpdate ? RowState.UpdateAvailable : RowState.UpToDate;
+            if (!Model.HasUpdate) return RowState.UpToDate;
+            return Model.ManualDownloadOnly ? RowState.ManualUpdate : RowState.UpdateAvailable;
         }
     }
 
@@ -168,6 +171,7 @@ public sealed class AddonRowViewModel : ObservableObject
     {
         RowState.Busy => BusyText,
         RowState.UpdateAvailable => "Update",
+        RowState.ManualUpdate => "Get update",
         RowState.UpToDate => "Up to date",
         RowState.NeedsKey => "Needs API key",
         RowState.Unavailable => "Unavailable",
@@ -187,6 +191,8 @@ public sealed class AddonRowViewModel : ObservableObject
                 RowState.Unavailable => Model.UnavailableReason,
                 RowState.Local => "Installed manually and not matched to any source. Use Get Addons to install a tracked copy.",
                 RowState.UpdateAvailable => $"{Model.InstalledVersion} → {Model.LatestVersion}",
+                RowState.ManualUpdate => $"{Model.InstalledVersion} → {Model.LatestVersion}{Environment.NewLine}The author only allows downloads from the CurseForge website, so this opens the download there. Satchel installs the zip automatically as soon as it lands in your Downloads folder.",
+                RowState.UpToDate when Model.ManualDownloadOnly => "Up to date. The author only allows downloads from the CurseForge website, so this opens the download there. Satchel installs the zip automatically as soon as it lands in your Downloads folder.",
                 RowState.Ignored => "Updates are ignored for this addon.",
                 _ => Model.LastCheckedAt is { } c ? $"Checked {Relative(c)}" : "",
             };
@@ -206,6 +212,7 @@ public sealed class AddonRowViewModel : ObservableObject
     public ICommand SetAlphaCommand { get; }
     public ICommand OpenWebsiteCommand { get; }
     public ICommand OpenFolderCommand { get; }
+    public ICommand GetManualUpdateCommand { get; }
 
     public static string Relative(DateTimeOffset when)
     {

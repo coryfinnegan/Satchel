@@ -186,6 +186,8 @@ public sealed class MainViewModel : ObservableObject
             var parts = new List<string> { $"{Rows.Count} addons" };
             if (local > 0) parts.Add($"{local} not tracked");
             parts.Add(UpdateCount == 1 ? "1 update" : $"{UpdateCount} updates");
+            var manual = Rows.Count(r => r.State == RowState.ManualUpdate);
+            if (manual > 0) parts.Add(manual == 1 ? "1 to download by hand" : $"{manual} to download by hand");
             if (_lastChecked is { } c) parts.Add($"checked {AddonRowViewModel.Relative(c)}");
             return string.Join("  ·  ", parts);
         }
@@ -411,7 +413,7 @@ public sealed class MainViewModel : ObservableObject
     private async Task AutoUpdateAsync(WowInstallation inst)
     {
         var candidates = _store.ForInstallation(inst.Id)
-            .Where(a => a.AutoUpdate && a.Status == AddonStatus.UpdateAvailable && IsProviderAvailable(a.ProviderName))
+            .Where(a => a.AutoUpdate && !a.ManualDownloadOnly && a.Status == AddonStatus.UpdateAvailable && IsProviderAvailable(a.ProviderName))
             .ToList();
         if (candidates.Count == 0) return;
 
@@ -615,6 +617,104 @@ public sealed class MainViewModel : ObservableObject
     }
 
     public Task UpdateAllFromTrayAsync() => UpdateAllAsync();
+
+    private CancellationTokenSource? _manualWait;
+
+    /// <summary>
+    /// For addons whose author only allows website downloads: opens the file's download on CurseForge, then installs
+    /// the zip the moment it lands in Downloads. Returns true if it was installed.
+    /// </summary>
+    public async Task<bool> FetchManualDownloadAsync(string name, string websiteUrl, string fileId, string fileName, Action<bool>? setBusy = null)
+    {
+        if (Selected is not { } inst) return false;
+        Shell.OpenUrl(ManualDownload.DownloadPageUrl(websiteUrl, fileId));
+        if (string.IsNullOrWhiteSpace(fileName))
+        {
+            ShowBanner(BannerKind.Info, $"Download {name} from the CurseForge page that just opened, then drop the zip onto Satchel.");
+            return false;
+        }
+
+        _manualWait?.Cancel();
+        var cts = _manualWait = CancellationTokenSource.CreateLinkedTokenSource(ShutdownToken);
+        var downloads = Shell.DownloadsFolder;
+        ShowBanner(BannerKind.Info,
+            $"CurseForge is opening the download for {name}. Satchel will install {fileName} from your Downloads folder as soon as it finishes.",
+            "Cancel", () => cts.Cancel());
+        setBusy?.Invoke(true);
+        try
+        {
+            var path = await ManualDownload.WaitForZipAsync(downloads, fileName, TimeSpan.FromMinutes(15), cts.Token);
+            if (path == null)
+            {
+                ShowBanner(BannerKind.Warning, $"Didn't see {fileName} in {downloads}. If your browser saved it somewhere else, drop the zip onto Satchel.");
+                return false;
+            }
+            setBusy?.Invoke(false);
+            await InstallFromFilesAsync([path], inst);
+            return true;
+        }
+        catch (OperationCanceledException)
+        {
+            if (!ShutdownToken.IsCancellationRequested) ShowBanner(BannerKind.Info, $"Stopped waiting for {fileName}.");
+            return false;
+        }
+        finally
+        {
+            setBusy?.Invoke(false);
+            if (ReferenceEquals(_manualWait, cts)) _manualWait = null;
+        }
+    }
+
+    public async void FetchManualUpdate(AddonRowViewModel row)
+    {
+        var m = row.Model;
+        await FetchManualDownloadAsync(row.Name, m.WebsiteUrl, m.LatestFileId, m.LatestFileName, busy =>
+        {
+            row.IsBusy = busy;
+            row.BusyText = busy ? "Waiting for download…" : "";
+        });
+    }
+
+    /// <summary>Installs zips the user downloaded (button or drag-and-drop) and tracks them.</summary>
+    public async Task InstallFromFilesAsync(IReadOnlyList<string> zipPaths, WowInstallation? target = null)
+    {
+        if ((target ?? Selected) is not { } inst || zipPaths.Count == 0) return;
+        var messages = new List<string>();
+        var failed = false;
+        BeginBusy("Installing…");
+        try
+        {
+            foreach (var zip in zipPaths)
+            {
+                BusyText = $"Installing {Path.GetFileName(zip)}…";
+                try
+                {
+                    var row = await _manager.InstallFromFileAsync(inst, zip, ShutdownToken);
+                    if (row == null) messages.Add($"Installed {Path.GetFileName(zip)}.");
+                    else if (row.IsManaged) messages.Add($"Installed {row.Name} and matched it to {row.ProviderName}, so updates will show up.");
+                    else messages.Add($"Installed {row.Name}. It isn't matched to any source, so it will show as Not tracked.");
+                }
+                catch (Exception ex) when (ex is not OperationCanceledException)
+                {
+                    failed = true;
+                    Log.Error($"Install from {zip} failed", ex);
+                    messages.Add($"Couldn't install {Path.GetFileName(zip)}: {ex.Message}");
+                }
+            }
+            BusyText = "Checking for updates…";
+            await _manager.CheckForUpdatesAsync(inst, ShutdownToken);
+        }
+        catch (OperationCanceledException)
+        {
+        }
+        finally
+        {
+            EndBusy();
+            SyncRows();
+            Search.RefreshInstalledFlags();
+        }
+        ShowBanner(failed ? BannerKind.Error : BannerKind.Success, string.Join(Environment.NewLine, messages));
+    }
 
     /// <summary>Runs an install-type operation with row progress. Returns false on failure.</summary>
     public async Task<bool> RunRowAsync(AddonRowViewModel row, string verb, Func<IProgress<double>, CancellationToken, Task<Addon>> work, bool showErrors)
